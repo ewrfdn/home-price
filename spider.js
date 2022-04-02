@@ -1,17 +1,21 @@
 const fs = require('fs-extra')
-const { dirExists, getAction, getDomListByXpath, writeToExcel } = require('./utils')
+const { dirExists, getAction, getDomListByXpath, writeToExcel, sleep } = require('./utils')
 const { extractColumns } = require('./constant')
 const xpathNameMap = {
   '//div[@id="introduction"]/div/div[1]/div[@class="base"]/div[2]/ul/li': '基本属性',
   '//div[@id="introduction"]/div/div[1]/div[@class="transaction"]/div[2]/ul/li': '交易属性',
   '/html/body/div[@class="overview"]/div[@class="content"]/div[@class="aroundInfo"]/div[@class="communityName"]/a[1]': '小区名称',
   '/html/body/div[@class="overview"]/div[@class="content"]/div[@class="aroundInfo"]/div[@class="areaName"]': '所在区域',
-  '/html/body/div[@class="overview"]/div[@class="content"]/div[@class="price-container"]/div': '价格'
+  '/html/body/div[@class="overview"]/div[@class="content"]/div[@class="price-container"]/div': '价格',
+  '/html/body/div[@class="m-content"]/div[@class="box-l"]/div[@class="newwrap baseinform"]/div[1]/div[@class="baseattribute clear"]': '房源特色'
 }
 class Spider {
   constructor(config) {
-    const { name, url } = config
+    const { name, url, sheetName } = config
     this.urlList = []
+    this.sheetName = sheetName
+    this.isFinished = false
+    this.name = name
     this.baseUrl = url
     this.saveDataPath = `./data/${name}`
     this.configPath = `./config/${name}.json`
@@ -31,21 +35,40 @@ class Spider {
     } else {
       this.saveConfig()
     }
-    await this.getPageUrlList()
-    const res = []
-    for (const item of this.urlList) {
-      const row = await this.getContext(item.url)
-      res.push(row)
+    while (!this.isFinished) {
+      await this.getPageData()
     }
-    await writeToExcel({
-      sheets: [{
-        name: 'Sheets1',
-        dataSource: res,
-        columns: extractColumns,
-      }],
-      path: this.saveDataPath + 'data.xlsx'
-    })
+  }
 
+  getPageData() {
+    return new Promise(async (resolve, reject) => {
+      await this.getPageUrlList()
+      const res = []
+      for (const item of this.urlList) {
+        const promise = this.getContext(item.url)
+        res.push(promise)
+      }
+      Promise.all(res).then(async (values) => {
+        values.forEach((element, index) => {
+          element.page = this.config.page - 1
+          element.pageIndex = index + 1
+        });
+        await writeToExcel({
+          sheets: [{
+            name: this.sheetName || 'Sheet1',
+            dataSource: values,
+            columns: extractColumns,
+          }],
+          path: this.saveDataPath + `/${this.name}.xlsx`
+        })
+        await this.saveConfig()
+        resolve(true)
+      }).catch(e => {
+        console.log(e)
+        reject(e)
+      }
+      )
+    })
   }
   async getPageUrlList() {
     const pageData = await getAction(`${this.baseUrl}/pg${this.config.page}/`)
@@ -63,8 +86,12 @@ class Spider {
       }
       i++
     }
-    this.urlList = urlList
     this.config.page++
+    if (urlList.length === 0 || this.config.page > 47) {
+      this.isFinished = true
+      this.config.page--
+    }
+    this.urlList = urlList
   }
 
   async getContext(url) {
@@ -97,6 +124,16 @@ class Spider {
       } else if (xpathNameMap[item.xpath] === '所在区域') {
         const childNodes = item.res[0].childNodes
         extract['所在区域'] = childNodes[2].textContent + childNodes[3].textContent
+        extract['所在区域'] = extract['所在区域'].replaceAll('&nbsp;', ' ')
+      } else if (xpathNameMap[item.xpath] === '房源特色') {
+        for (const list of item.res) {
+          const childNodes = list.childNodes
+          const key = childNodes[1].textContent
+          let value = childNodes[3].textContent
+          value = value.replaceAll(' ', '')
+          value = value.replaceAll('\n', '')
+          extract[key] = value
+        }
       }
     }
     return extract

@@ -5,7 +5,6 @@ const $ = require('cheerio')
 const xpath = require('xpath')
 const dom = require('xmldom').DOMParser
 const writeToExcel = ({ sheets, path }) => {
-
   let sheetList = []
   const hasExcelFile = fs.existsSync(path)
   if (hasExcelFile) {
@@ -42,7 +41,7 @@ const writeToExcel = ({ sheets, path }) => {
   const buffer = xlsx.build(sheetList)
   fs.writeFileSync(path, buffer)
 }
-const { createInstance } = require('./request.js')
+const { createInstance } = require('./request.js');
 
 const getAction = async (url, options) => {
   const request = await createInstance().get(url, options)
@@ -96,9 +95,17 @@ const getDomListByXpath = (rootDom, xpathString) => {
     return result
   }
 }
+const sleep = (timeSpan)=>{
+  return new Promise((resolve,reject)=>{
+    setTimeout(()=>{
+      resolve()
+    },timeSpan )
+  })
+}
 module.exports = {
   writeToExcel,
   getAction,
   dirExists,
-  getDomListByXpath
+  getDomListByXpath,
+  sleep
 }
