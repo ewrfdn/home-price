@@ -94,11 +94,11 @@ const extractColumns = [
   },
 ]
 const areaList = [
-{ name: '玄武区', code: 'xuanwu' },
 { name: '鼓楼区', code: 'gulou' }, 
+{ name: '玄武区', code: 'xuanwu' },
 { name: "栖霞区", code: 'qixia' },
 { name: '秦淮区', code: 'qinhuai' }, 
-{ code: '建业区', code: 'jianye' },
+{ name: '建业区', code: 'jianye' },
 { name: '雨花台区', code: 'yuhuatai' }
 ]
 const price = [
@@ -114,11 +114,11 @@ const price = [
 const liveRoom = [
   {name:'一室',code:'l1'},
   {name:'两室',code:'l2'},
-  {name:'三室',code:'l3'},
+  { name: '三室', code: 'l3' },
   {name:'四室',code:'l4'},
   {name:'四室以上',code:'l5'},
 ]
-const baseURL = 'https://nj.lianjia.com/ershoufang/xuanwu'
+const baseURL = 'https://nj.lianjia.com/ershoufang'
 module.exports = {
   extractColumns,
   baseURL,

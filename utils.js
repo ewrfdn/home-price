@@ -44,8 +44,13 @@ const writeToExcel = ({ sheets, path }) => {
 const { createInstance } = require('./request.js');
 
 const getAction = async (url, options) => {
-  const request = await createInstance().get(url, options)
+  try {
+    const request = await createInstance().get(url, options)
   return request.data
+    
+  } catch(e) {
+    throw new Error(e)
+  }
 }
 const dirExists = async (dir) => {
   const isExists = await getStat(dir)

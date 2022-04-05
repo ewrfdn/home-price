@@ -11,14 +11,16 @@ const xpathNameMap = {
 }
 class Spider {
   constructor(config) {
-    const { name, url, sheetName } = config
+    const { name, url, sheetName, query } = config
     this.urlList = []
+    this.query = query
     this.sheetName = sheetName
     this.isFinished = false
     this.name = name
     this.baseUrl = url
-    this.saveDataPath = `./data/${name}`
+    this.saveDataPath = `./data`
     this.configPath = `./config/${name}.json`
+    this.errorRecord=`./errorUrl.json`
     this.config = {
       page: 1,
     }
@@ -35,17 +37,31 @@ class Spider {
     } else {
       this.saveConfig()
     }
+    let urlList = []
+      const hasLog = fs.existsSync(this.errorRecord)
+      if (hasLog) {
+        urlList = fs.readJSONSync(this.errorRecord)
+      } else {
+        fs.writeFileSync(this.errorRecord, JSON.stringify(urlList))
+      }
     while (!this.isFinished) {
+      try {
       await this.getPageData()
+      } catch (e) {
+        urlList.push({ baseUrl: this.baseUrl, query: this.query, page: this.config.page })
+        fs.writeFileSync(this.errorRecord, JSON.stringify(urlList))
+      }
     }
   }
 
   getPageData() {
     return new Promise(async (resolve, reject) => {
-      await this.getPageUrlList()
+      try {
+        await this.getPageUrlList()
       const res = []
       for (const item of this.urlList) {
         const promise = this.getContext(item.url)
+        await sleep(800)
         res.push(promise)
       }
       Promise.all(res).then(async (values) => {
@@ -61,6 +77,7 @@ class Spider {
           }],
           path: this.saveDataPath + `/${this.name}.xlsx`
         })
+        this.config.page++
         await this.saveConfig()
         resolve(true)
       }).catch(e => {
@@ -68,34 +85,43 @@ class Spider {
         reject(e)
       }
       )
+      } catch (e) {
+        reject(e)
+      }
+      
     })
   }
   async getPageUrlList() {
-    const pageData = await getAction(`${this.baseUrl}/pg${this.config.page}/`)
-    const resList = getDomListByXpath(pageData, '//div[@id="content"]/div[@class="leftContent"]/ul[1]/li/div[1]/div[@class="title"]/a[1]')
-    const urlList = []
-    let i = 0
-    for (const res of resList) {
-      const attributes = res.attributes
-      for (let index = 0; index < res.attributes.length; index++) {
-        const attribute = attributes[index]
-        if (attribute.name === 'href') {
-          urlList.push({ page: this.config.page, url: attribute.value, index: i })
-          break
+    try {
+      const pageUrl= `${this.baseUrl}/${this.query}pg${this.config.page}/`
+      const pageData = await getAction(pageUrl)
+      const resList = getDomListByXpath(pageData, '//div[@id="content"]/div[@class="leftContent"]/ul[1]/li/div[1]/div[@class="title"]/a[1]')
+      const urlList = []
+      let i = 0
+      for (const res of resList) {
+        const attributes = res.attributes
+        for (let index = 0; index < res.attributes.length; index++) {
+          const attribute = attributes[index]
+          if (attribute.name === 'href') {
+            urlList.push({ page: this.config.page, url: attribute.value, index: i })
+            break
+          }
         }
+        i++
       }
-      i++
+      if (urlList.length === 0 || this.config.page > 100) {
+        this.isFinished = true
+      }
+      this.urlList = urlList
+    } catch (e) {
+      throw new Error(e.message)
     }
-    this.config.page++
-    if (urlList.length === 0 || this.config.page > 47) {
-      this.isFinished = true
-      this.config.page--
-    }
-    this.urlList = urlList
+   
   }
 
   async getContext(url) {
-    const content = await getAction(url)
+    try {
+      const content = await getAction(url)
     const xpathList = []
     for (const key in xpathNameMap) {
       xpathList.push(key)
@@ -137,6 +163,9 @@ class Spider {
       }
     }
     return extract
+    } catch (e) {
+      throw new Error(e.message)
+    }
 
   }
 }
